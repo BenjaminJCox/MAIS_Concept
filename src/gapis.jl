@@ -13,6 +13,7 @@ function gapis_step!(
     dlπ = x -> gradient(k -> log(target(k)), x),
     Hπ = x -> hessian(k -> -log(target(k)), x),
     repulsion = false,
+    scale_adapt = true
 )
     n_proposals = length(proposals)
     samples = Vector{Vector{Float64}}(undef, n_proposals * samples_each)
@@ -26,7 +27,7 @@ function gapis_step!(
         end
     end
     weights = Weights(wts)
-    Threads.@threads for p_idx = 1:n_proposals
+    for p_idx = 1:n_proposals
         location = proposals[p_idx].μ
         scale = proposals[p_idx].Σ
         if repulsion
@@ -34,13 +35,18 @@ function gapis_step!(
         else
             new_location = location .+ (λ .* dlπ(location)[1])
         end
-        new_scale = inv(Hπ(location))
-        new_scale .+= new_scale'
-        new_scale ./= 2
 
-        new_scale = (1-λ) .* scale .+ λ .* new_scale
-        new_scale .+= new_scale'
-        new_scale ./= 2
+        if scale_adapt
+            new_scale = inv(Hπ(location))
+            new_scale .+= new_scale'
+            new_scale ./= 2
+
+            new_scale = (1-λ) .* scale .+ λ .* new_scale
+            new_scale .+= new_scale'
+            new_scale ./= 2
+        else
+            new_scale = scale
+        end
         proposals[p_idx] = MvNormal(new_location, new_scale)
     end
     return @dict samples weights

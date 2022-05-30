@@ -33,7 +33,7 @@ function merge_normals(N1, N2; λ = 0.5)
     return MvNormal(μres, Σres)
 end
 
-function merge_hellinger(proposals, λ = 0.1)
+function merge_hellinger!(proposals, λ = 0.1)
     dm = construct_distance_matrix(proposals, pw_hellinger) .+ diagm([Inf for i = 1:length(proposals)])
     proposals_scratch = copy(proposals)
     _temp_proposals = Vector{MvNormal}()
@@ -50,4 +50,21 @@ function merge_hellinger(proposals, λ = 0.1)
         dm = construct_distance_matrix(_temp_proposals, pw_hellinger) .+= diagm([Inf for i = 1:length(_temp_proposals)])
     end
     return proposals_scratch
+end
+
+function mixture_culling_ess!(proposals, samples_each, weights; ν = 0.7)
+    n_proposals = length(proposals)
+    g_ess = inv(sum(weights .^ 2))
+    _temp_proposals = Vector{MvNormal}()
+    l_ess = Vector{Float64}(undef, n_proposals)
+    for p_idx in 1:n_proposals
+        s_offset = (p_idx - 1) * samples_each
+        p_weights = weights[(s_offset+1):(s_offset+samples_each)]
+        pwess = p_weights ./ sum(p_weights)
+        l_ess[p_idx] = inv(sum(pwess .^ 2))
+        if l_ess[p_idx] > ν * samples_each
+            push!(_temp_proposals, proposals[p_idx])
+        end
+    end
+    proposals = _temp_proposals
 end

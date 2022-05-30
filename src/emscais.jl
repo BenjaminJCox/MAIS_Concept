@@ -79,8 +79,9 @@ function emscais_step!(
         s_offset = (p_idx - 1) * samples_each
         p_samples = samples[(s_offset+1):(s_offset+samples_each)]
         p_weights = weights[(s_offset+1):(s_offset+samples_each)]
+        pwess = p_weights ./ sum(p_weights)
 
-        _ess = inv(sum(p_weights .^ 2))
+        _ess = inv(sum(pwess .^ 2))
 
         if _ess <= N_t
             n_weights2 = p_weights .^ inv(γ)

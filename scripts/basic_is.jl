@@ -13,7 +13,7 @@ include(srcdir("emscais.jl"))
 
 include(srcdir("mixture_reduction.jl"))
 
-Random.seed!(1234);
+Random.seed!(1234567);
 
 # target(x) = pdf(MvNormal([1,1], [1 0; 0 1]), x)
 
@@ -107,24 +107,28 @@ xlims!(0, nothing)
 f
 
 
-# gapis_props = init_proposals(2, 12, σ = 3.0)
-# for i = 1:30
-#     gapis_step!(gapis_props, target, 5, repulsion = true, λ = 0.1)
-# end
-# gapis_results = gapis_step!(gapis_props, target, N)
-#
-# Zhat_gapis = mean(gapis_results[:weights])
-# is_mean_gapis = inv(Zhat_gapis) * mean(gapis_results[:weights] .* gapis_results[:samples])
-#
-# is_mdiff_gapis = gapis_results[:samples] .- [is_mean_gapis for i = 1:(N*length(gapis_props))]
-#
-# is_cov_gapis = inv(Zhat_gapis) * mean(gapis_results[:weights] .* [i * i' for i in is_mdiff_gapis])
-#
-# ax3 = Axis(f[1, 3], title = "Gradient Adaptive Population IS", xticks = LinearTicks(4), yticks = LinearTicks(4))
-# hist!(ax3, gapis_results[:weights] ./ sum(gapis_results[:weights]), bins = B, normalization = :pdf)
-# ylims!(0, nothing)
-# xlims!(0, nothing)
-# f
+gapis_props = init_proposals(2, 12, σ = 3.0)
+for i = 1:30
+    if i < 10
+        gapis_step!(gapis_props, target, 5, repulsion = false, λ = 0.1, scale_adapt = false)
+    else
+        gapis_step!(gapis_props, target, 5, repulsion = true, λ = 0.1, scale_adapt = false)
+    end
+end
+gapis_results = gapis_step!(gapis_props, target, N)
+
+Zhat_gapis = mean(gapis_results[:weights])
+is_mean_gapis = inv(Zhat_gapis) * mean(gapis_results[:weights] .* gapis_results[:samples])
+
+is_mdiff_gapis = gapis_results[:samples] .- [is_mean_gapis for i = 1:(N*length(gapis_props))]
+
+is_cov_gapis = inv(Zhat_gapis) * mean(gapis_results[:weights] .* [i * i' for i in is_mdiff_gapis])
+
+ax3 = Axis(f[1, 3], title = "Gradient Adaptive Population IS", xticks = LinearTicks(4), yticks = LinearTicks(4))
+hist!(ax3, gapis_results[:weights] ./ sum(gapis_results[:weights]), bins = B, normalization = :pdf)
+ylims!(0, nothing)
+xlims!(0, nothing)
+f
 
 
 lais_props = init_proposals(2, 12, σ = 3.0)
@@ -193,10 +197,16 @@ rsc_mu = [i.μ for i in rscais_gradual_props]
 rs_iters = 400
 for i = 1:rs_iters
     # rscais_gradual_step!(rscais_gradual_props, target, 100, η = inv(i), β = 0.4 .* exp(-(i-1)/30))
+    # kvk = rscais_gradual_step!(rscais_gradual_props, target, 100, η = inv(i), β = 0.1)
     rscais_gradual_step!(rscais_gradual_props, target, 100, η = inv(i), β = 0.1)
-    if i > 200
-        global rscais_gradual_props = merge_hellinger(rscais_gradual_props, 0.2)
-    end
+    # if i > 200
+    #     global rscais_gradual_props = merge_hellinger(rscais_gradual_props, 0.2)
+    #     if i % 2 == 0
+    #         global rscais_gradual_props = merge_hellinger!(rscais_gradual_props, 0.3)
+    #     elseif i % 5 == 0
+    #         global rscais_gradual_props = mixture_culling_ess!(rscais_gradual_props, 100, kvk[:weights]; ν = 0.6)
+    #     end
+    # end
 end
 rscais_gradual_results = rscais_gradual_step!(rscais_gradual_props, target, N, η = inv(rs_iters + 1), β = 0.1)
 
@@ -224,15 +234,21 @@ for i = 1:ems_iters
     # emscais_step!(emscais_props, target, 100, η = inv(i), β = 0.4 .* exp(-(i-1)/30))
     # (ems_iters - i + 1)/ems_iters
     if i < 40
-        emscais_step!(emscais_props, target, 100, η = inv(i), β = 0.35, κ = inv(i), repulsion = true, α = 1.0)
+        kv = emscais_step!(emscais_props, target, 100, η = inv(i), β = 0.35, κ = inv(i), repulsion = true, α = 1.0)
     elseif i < 100
-        emscais_step!(emscais_props, target, 100, η = inv(i), β = 0.15, κ = inv(i), repulsion = false, α = 0.7)
+        kv = emscais_step!(emscais_props, target, 100, η = inv(i), β = 0.15, κ = inv(i), repulsion = false, α = 0.7)
     else
-        emscais_step!(emscais_props, target, 100, η = inv(i), β = 0.075, κ = inv(i), repulsion = false, α = 0.3)
+        kv = emscais_step!(emscais_props, target, 100, η = inv(i), β = 0.075, κ = inv(i), repulsion = false, α = 0.3)
     end
     if i > 70
-        global emscais_props = merge_hellinger(emscais_props, 0.4)
+        if i % 2 == 0
+            global emscais_props = merge_hellinger!(emscais_props, 0.4)
+        else
+            global emscais_props = mixture_culling_ess!(emscais_props, 100, kv[:weights]; ν = 0.8)
+        end
     end
+    # @info(i)
+    # display(split_ess(emscais_props, 100, kv[:weights]; λ = 0.8, ν = 0.2))
 end
 emscais_results = emscais_step!(emscais_props, target, N, η = 0, β = 0.03, κ = 0, repulsion = false)
 
@@ -268,7 +284,7 @@ _res = 200
 xs_main = LinRange(-6.1, 4.1, _res)
 ys_main = LinRange(-2.1, 6.1, _res)
 zs_main = [target([x, y]) for x in xs_main, y in ys_main]
-pl = heatmap!(f2axmain, xs_main, ys_main, zs_main, interpolate = true, colormap = :cividis)
+pl = heatmap!(f2axmain, xs_main, ys_main, zs_main, interpolate = true, colormap = :Oranges_9)
 
 start_box = [[-2, -2], [-2, 2], [2, 2], [2, -2], [-2, -2]]
 xs = [p[1] for p in start_box]
@@ -282,7 +298,7 @@ scatter!(f2axmain, xs, ys, color = "sienna", markersize = 5)
 mus = [i.μ for i in emscais_props]
 xs = [i[1] for i in mus]
 ys = [i[2] for i in mus]
-scatter!(f2axmain, xs, ys, color = "red")
+scatter!(f2axmain, xs, ys, color = "blue")
 
 t_xm = lines!(f2axtop, xs_main, vec(sum(zs_main, dims = 2)))
 xlims!(f2axtop, extrema(xs_main))
@@ -333,7 +349,7 @@ _res = 200
 xs_main = LinRange(-6.1, 4.1, _res)
 ys_main = LinRange(-2.1, 6.1, _res)
 zs_main = [target([x, y]) for x in xs_main, y in ys_main]
-pl = heatmap!(f3axmain, xs_main, ys_main, zs_main, interpolate = true, colormap = :cividis)
+pl = heatmap!(f3axmain, xs_main, ys_main, zs_main, interpolate = true, colormap = :Oranges_9)
 
 start_box = [[-2, -2], [-2, 2], [2, 2], [2, -2], [-2, -2]]
 xs = [p[1] for p in start_box]
@@ -347,7 +363,7 @@ scatter!(f3axmain, xs, ys, color = "sienna", markersize = 5)
 mus = [i.μ for i in rscais_gradual_props]
 xs = [i[1] for i in mus]
 ys = [i[2] for i in mus]
-scatter!(f3axmain, xs, ys, color = "red")
+scatter!(f3axmain, xs, ys, color = "blue")
 
 t_xm = lines!(f3axtop, xs_main, vec(sum(zs_main, dims = 2)))
 xlims!(f3axtop, extrema(xs_main))
@@ -396,12 +412,12 @@ function plot_marginals(proposals, target, xrange, yrange)
     xs_main = LinRange(xrange..., _res)
     ys_main = LinRange(yrange..., _res)
     zs_main = [target([x, y]) for x in xs_main, y in ys_main]
-    pl = heatmap!(f3axmain, xs_main, ys_main, zs_main, interpolate = true, colormap = :cividis)
+    pl = heatmap!(f3axmain, xs_main, ys_main, zs_main, interpolate = true, colormap = :Oranges_9)
 
     mus = [i.μ for i in proposals]
     xs = [i[1] for i in mus]
     ys = [i[2] for i in mus]
-    scatter!(f3axmain, xs, ys, color = "red")
+    scatter!(f3axmain, xs, ys, color = "blue")
 
     t_xm = lines!(f3axtop, xs_main, vec(sum(zs_main, dims = 2)))
     xlims!(f3axtop, extrema(xs_main))
