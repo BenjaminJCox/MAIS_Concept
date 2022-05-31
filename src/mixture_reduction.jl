@@ -49,21 +49,48 @@ function merge_hellinger!(proposals, λ = 0.1)
         proposals_scratch = _temp_proposals
         dm = construct_distance_matrix(_temp_proposals, pw_hellinger) .+= diagm([Inf for i = 1:length(_temp_proposals)])
     end
-    return proposals_scratch
+    proposals = proposals_scratch
+    # return proposals_scratch
 end
 
 function mixture_culling_ess!(proposals, samples_each, weights; ν = 0.7)
     n_proposals = length(proposals)
     g_ess = inv(sum(weights .^ 2))
     _temp_proposals = Vector{MvNormal}()
-    l_ess = Vector{Float64}(undef, n_proposals)
+    # l_ess = Vector{Float64}(undef, n_proposals)
     for p_idx in 1:n_proposals
         s_offset = (p_idx - 1) * samples_each
         p_weights = weights[(s_offset+1):(s_offset+samples_each)]
         pwess = p_weights ./ sum(p_weights)
-        l_ess[p_idx] = inv(sum(pwess .^ 2))
-        if l_ess[p_idx] > ν * samples_each
+        # l_ess[p_idx] = inv(sum(pwess .^ 2))
+        # if l_ess[p_idx] > ν * samples_each
+        if inv(sum(pwess .^ 2)) > ν * samples_each
             push!(_temp_proposals, proposals[p_idx])
+        end
+    end
+    proposals = _temp_proposals
+end
+
+function split_ess!(proposals, samples_each, weights; ν = 0.2)
+    n_proposals = length(proposals)
+    gwess = weights ./ sum(weights)
+    g_ess = inv(sum(gwess .^ 2))
+
+    l_ess = zeros(n_proposals, n_proposals)
+    for p_idx in 1:n_proposals
+        s_offset = (p_idx - 1) * samples_each
+        p_weights = weights[(s_offset+1):(s_offset+samples_each)]
+        pwess = p_weights ./ sum(p_weights)
+        pw_ess = inv(sum(pwess .^ 2))
+        l_ess[:, p_idx] .+= pw_ess
+        l_ess[p_idx, :] .+= pw_ess
+    end
+    _temp_proposals = copy(proposals)
+    for p1_idx in 1:n_proposals
+        for p2_idx in p1_idx:n_proposals
+            if (p1_idx != p2_idx) && (l_ess[p1_idx, p2_idx] < 2 * ν * samples_each)
+                push!(_temp_proposals, merge_normals(proposals[p1_idx], proposals[p2_idx]))
+            end
         end
     end
     proposals = _temp_proposals

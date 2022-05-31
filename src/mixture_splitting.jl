@@ -18,23 +18,6 @@ function split_normals(N1, N2; λ = 0.5)
     return MvNormal(μres, Σres)
 end
 
-function split_ess(proposals, samples_each, weights; λ = 0.8, ν = 0.2)
-    n_proposals = length(proposals)
-    gwess = weights ./ sum(weights)
-    g_ess = inv(sum(gwess .^ 2))
-
-    l_ess = zeros(n_proposals, n_proposals)
-    for p_idx in 1:n_proposals
-        s_offset = (p_idx - 1) * samples_each
-        p_weights = weights[(s_offset+1):(s_offset+samples_each)]
-        pwess = p_weights ./ sum(p_weights)
-        pw_ess = inv(sum(pwess .^ 2))
-        l_ess[:, p_idx] .+= pw_ess
-        l_ess[p_idx, :] .+= pw_ess
-    end
-    return l_ess
-end
-
 function split_hellinger(proposals, λ = 0.8)
     dm = construct_distance_matrix(proposals, pw_hellinger) .+ diagm([Inf for i = 1:length(proposals)])
     proposals_scratch = copy(proposals)
