@@ -22,14 +22,14 @@ end
 
 function merge_normals(N1, N2; λ = 0.5)
     # assuming unweighted
-    μ1, μ2 = N1.μ, N2.μ
-    @assert length(μ1) == length(μ2)
-    k = length(μ1)
-    Σ1, Σ2 = N1.Σ, N2.Σ
-    μres = 0.5 .* (μ1 .+ μ2)
+    # μ1, μ2 = N1.μ, N2.μ
+    @assert length(N1.μ) == length(N2.μ)
+    k = length(N2.μ)
+    # Σ1, Σ2 = N1.Σ, N2.Σ
+    μres = 0.5 .* (N1.μ .+ N2.μ)
     # Σres = 0.25 .* (Σ1 .+ Σ2)
     # Σres = Σ1 .+ Σ2
-    Σres = λ .* (Σ1 .+ Σ2)
+    Σres = λ .* (N1.Σ .+ N2.Σ)
     return MvNormal(μres, Σres)
 end
 
@@ -53,18 +53,18 @@ function merge_hellinger!(proposals, λ = 0.1)
     # return proposals_scratch
 end
 
-function mixture_culling_ess!(proposals, samples_each, weights; ν = 0.7)
+function mixture_culling_ess!(proposals, samples_each, weights; ν = 0.8)
     n_proposals = length(proposals)
     g_ess = inv(sum(weights .^ 2))
     _temp_proposals = Vector{MvNormal}()
     # l_ess = Vector{Float64}(undef, n_proposals)
     for p_idx in 1:n_proposals
         s_offset = (p_idx - 1) * samples_each
-        p_weights = weights[(s_offset+1):(s_offset+samples_each)]
-        pwess = p_weights ./ sum(p_weights)
+        @views p_weights = weights[(s_offset+1):(s_offset+samples_each)]
+        pw_ess = inv(sum(x -> x .^2, p_weights ./ sum(p_weights)))
         # l_ess[p_idx] = inv(sum(pwess .^ 2))
         # if l_ess[p_idx] > ν * samples_each
-        if inv(sum(pwess .^ 2)) > ν * samples_each
+        if pw_ess > ν * samples_each
             push!(_temp_proposals, proposals[p_idx])
         end
     end
@@ -79,9 +79,8 @@ function split_ess!(proposals, samples_each, weights; ν = 0.2)
     l_ess = zeros(n_proposals, n_proposals)
     for p_idx in 1:n_proposals
         s_offset = (p_idx - 1) * samples_each
-        p_weights = weights[(s_offset+1):(s_offset+samples_each)]
-        pwess = p_weights ./ sum(p_weights)
-        pw_ess = inv(sum(pwess .^ 2))
+        @views p_weights = weights[(s_offset+1):(s_offset+samples_each)]
+        pw_ess = inv(sum(x -> x .^2, p_weights ./ sum(p_weights)))
         l_ess[:, p_idx] .+= pw_ess
         l_ess[p_idx, :] .+= pw_ess
     end

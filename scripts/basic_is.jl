@@ -198,15 +198,15 @@ rs_iters = 400
 for i = 1:rs_iters
     # rscais_gradual_step!(rscais_gradual_props, target, 100, η = inv(i), β = 0.4 .* exp(-(i-1)/30))
     # kvk = rscais_gradual_step!(rscais_gradual_props, target, 100, η = inv(i), β = 0.1)
-    rscais_gradual_step!(rscais_gradual_props, target, 100, η = inv(i), β = 0.1)
-    # if i > 200
-    #     global rscais_gradual_props = merge_hellinger(rscais_gradual_props, 0.2)
-    #     if i % 2 == 0
-    #         global rscais_gradual_props = merge_hellinger!(rscais_gradual_props, 0.3)
-    #     elseif i % 5 == 0
-    #         global rscais_gradual_props = mixture_culling_ess!(rscais_gradual_props, 100, kvk[:weights]; ν = 0.6)
-    #     end
-    # end
+    kvk = rscais_gradual_step!(rscais_gradual_props, target, 100, η = inv(i), β = 0.4, α = 0.2)
+    if i > 200
+        # global rscais_gradual_props = merge_hellinger!(rscais_gradual_props, 0.2)
+        if i % 2 == 0
+            global rscais_gradual_props = merge_hellinger!(rscais_gradual_props, 0.3)
+        elseif i % 5 == 0
+            global rscais_gradual_props = mixture_culling_ess!(rscais_gradual_props, 100, kvk[:weights]; ν = 0.6)
+        end
+    end
 end
 rscais_gradual_results = rscais_gradual_step!(rscais_gradual_props, target, N, η = inv(rs_iters + 1), β = 0.1)
 
@@ -240,7 +240,7 @@ for i = 1:ems_iters
     else
         kv = emscais_step!(emscais_props, target, 100, η = inv(i), β = 0.075, κ = inv(i), repulsion = false, α = 0.3)
     end
-    if i > 70
+    if i > 100
         if i % 2 == 0
             global emscais_props = merge_hellinger!(emscais_props, 0.4)
         else

@@ -60,7 +60,7 @@ function emscais_step!(
     γ = 3,
     N_t = 0.1 * samples_each,
     repulsion = true,
-    mcmc_steps = 1,
+    mcmc_steps = 3,
 )
     # Energy-Mean Shrinkage-Covariance (Multiple) Adaptive Importance Sampling
     n_proposals = length(proposals)
@@ -71,17 +71,15 @@ function emscais_step!(
         s_offset = (p_idx - 1) * samples_each
         for i = 1:samples_each
             samples[s_offset+i] = rand(prop)
-            wts[s_offset+i] = dm_weights(samples[s_offset+i], proposals, target)
+            @views wts[s_offset+i] = dm_weights(samples[s_offset+i], proposals, target)
         end
     end
     weights = Weights(wts)
     Threads.@threads for p_idx = 1:n_proposals
         s_offset = (p_idx - 1) * samples_each
-        p_samples = samples[(s_offset+1):(s_offset+samples_each)]
-        p_weights = weights[(s_offset+1):(s_offset+samples_each)]
-        pwess = p_weights ./ sum(p_weights)
-
-        _ess = inv(sum(pwess .^ 2))
+        @views p_samples = samples[(s_offset+1):(s_offset+samples_each)]
+        @views p_weights = weights[(s_offset+1):(s_offset+samples_each)]
+        _ess = inv(sum(x -> x .^2, p_weights ./ sum(p_weights)))
 
         if _ess <= N_t
             n_weights2 = p_weights .^ inv(γ)
