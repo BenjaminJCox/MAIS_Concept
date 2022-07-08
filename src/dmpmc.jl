@@ -56,7 +56,7 @@ function dmpmc_step!(proposals::Vector{MvNormal}, target::Function, samples_each
     return @dict samples weights
 end
 
-function dmpmc_init_adapt!(proposals, target; n_adapts = 20, samples_adapts = 50, global_adapt = true)
+function dmpmc_init_adapt!(proposals, target; n_adapts = 20, samples_adapts = 50, global_adapt = false)
     for i = 1:n_adapts
         dmpmc_step!(proposals, target, samples_adapts; global_adapt = global_adapt)
     end

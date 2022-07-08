@@ -57,13 +57,10 @@ function mixture_culling_ess!(proposals, samples_each, weights; ν = 0.8)
     n_proposals = length(proposals)
     g_ess = inv(sum(weights .^ 2))
     _temp_proposals = Vector{MvNormal}()
-    # l_ess = Vector{Float64}(undef, n_proposals)
     for p_idx in 1:n_proposals
         s_offset = (p_idx - 1) * samples_each
         @views p_weights = weights[(s_offset+1):(s_offset+samples_each)]
         pw_ess = inv(sum(x -> x .^2, p_weights ./ sum(p_weights)))
-        # l_ess[p_idx] = inv(sum(pwess .^ 2))
-        # if l_ess[p_idx] > ν * samples_each
         if pw_ess > ν * samples_each
             push!(_temp_proposals, proposals[p_idx])
         end

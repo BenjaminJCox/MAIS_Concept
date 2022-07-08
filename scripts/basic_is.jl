@@ -3,6 +3,7 @@ using StatsBase
 using DrWatson
 using CairoMakie
 using Random
+using KernelDensity
 
 include(srcdir("dmpmc.jl"))
 include(srcdir("gapis.jl"))
@@ -12,18 +13,19 @@ include(srcdir("cais.jl"))
 include(srcdir("emscais.jl"))
 
 include(srcdir("mixture_reduction.jl"))
+include("p_helper.jl")
 
-Random.seed!(1234567);
+Random.seed!(123456);
 
 # target(x) = pdf(MvNormal([1,1], [1 0; 0 1]), x)
 
 @inline function rapid_mvn_prec(x, mu, i_sigma, isq_d_sigma)
     k = size(mu, 1)
 
-    t1 = (2π)^(-k / 2)
+    t1 = (2π) .^ (-k ./ 2)
     t2 = isq_d_sigma
     lt3 = transpose(x .- mu) * i_sigma * (x .- mu)
-    t3 = exp(-0.5 * lt3)
+    t3 = exp(-0.5 .* lt3)
     return (t1 * t2 * t3)
 end
 
@@ -90,7 +92,7 @@ f
 
 
 dmpmc_props = init_proposals(2, 12, σ = 3.0)
-dmpmc_init_adapt!(dmpmc_props, target; n_adapts = 30, samples_adapts = 200, global_adapt = true)
+dmpmc_init_adapt!(dmpmc_props, target; n_adapts = 30, samples_adapts = 100, global_adapt = false)
 dmpmc_results = dmpmc_step!(dmpmc_props, target, N, global_adapt = true)
 
 Zhat_dmpmc = mean(dmpmc_results[:weights])
@@ -202,7 +204,7 @@ for i = 1:rs_iters
     if i > 200
         # global rscais_gradual_props = merge_hellinger!(rscais_gradual_props, 0.2)
         if i % 2 == 0
-            global rscais_gradual_props = merge_hellinger!(rscais_gradual_props, 0.3)
+            global rscais_gradual_props = merge_hellinger!(rscais_gradual_props, 0.4)
         elseif i % 5 == 0
             global rscais_gradual_props = mixture_culling_ess!(rscais_gradual_props, 100, kvk[:weights]; ν = 0.6)
         end
@@ -242,9 +244,9 @@ for i = 1:ems_iters
     end
     if i > 100
         if i % 2 == 0
-            global emscais_props = merge_hellinger!(emscais_props, 0.4)
+            global emscais_props = merge_hellinger!(emscais_props, 0.6)
         else
-            global emscais_props = mixture_culling_ess!(emscais_props, 100, kv[:weights]; ν = 0.8)
+            global emscais_props = mixture_culling_ess!(emscais_props, 100, kv[:weights]; ν = 0.5)
         end
     end
     # @info(i)
@@ -268,6 +270,17 @@ Label(f[0, :], "Weight distribution", textsize = 20)
 
 # linkaxes!(ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8)
 f
+
+function quad_trap(f_eval, xs)
+    hs = diff(xs)
+    int = 0
+    N = length(xs)
+    for k = 1:N-1
+        xk = f_eval[k] + f_eval[k+1]
+        int = int + hs[k] * xk
+    end
+    return int
+end
 
 f2 = Figure(resolution = (1600, 1600))
 f2axtop = Axis(f2[1, 1], title = "EMSC AIS, $(ems_iters) iterations")
@@ -300,36 +313,41 @@ xs = [i[1] for i in mus]
 ys = [i[2] for i in mus]
 scatter!(f2axmain, xs, ys, color = "blue")
 
-t_xm = lines!(f2axtop, xs_main, vec(sum(zs_main, dims = 2)))
-xlims!(f2axtop, extrema(xs_main))
+a1 = quad_trap(vec(sum(zs_main, dims = 2)), xs_main)
+a2 = quad_trap(vec(sum(zs_main, dims = 1)), ys_main)
 
-t_ym = lines!(f2axright, vec(sum(zs_main, dims = 1)), ys_main)
-ylims!(f2axright, extrema(ys_main))
+t_xm = lines!(f2axtop, xs_main, vec(sum(zs_main, dims = 2)) ./ 0.5a1)
+t_ym = lines!(f2axright, vec(sum(zs_main, dims = 1)) ./ 0.5a2, ys_main)
 
 hidedecorations!(f2axtop, grid = false)
 hidedecorations!(f2axright, grid = false)
 
-comp_mixture = MixtureModel(emscais_props)
-zs_mixture = [pdf(comp_mixture, [x, y]) for x in xs_main, y in ys_main]
+# comp_mixture = MixtureModel(emscais_props)
+# zs_mixture = [pdf(comp_mixture, [x, y]) for x in xs_main, y in ys_main]
 
-a_xm = lines!(f2axtop, xs_main, vec(sum(zs_mixture, dims = 2)))
+emscais_samples_demux = permutedims(hcat(emscais_results[:samples]...))
+x_kde = kde(emscais_samples_demux[:, 1], weights = emscais_results[:weights])
+y_kde = kde(emscais_samples_demux[:, 2], weights = emscais_results[:weights])
+
+# a_xm = lines!(f2axtop, xs_main, vec(sum(zs_mixture, dims = 2)))
+a_xm = lines!(f2axtop, xs_main, pdf(x_kde, xs_main))
 xlims!(f2axtop, extrema(xs_main))
 
-a_ym = lines!(f2axright, vec(sum(zs_mixture, dims = 1)), ys_main)
+
+# a_ym = lines!(f2axright, vec(sum(zs_mixture, dims = 1)), ys_main)
+a_ym = lines!(f2axright, pdf(y_kde, ys_main), ys_main)
 ylims!(f2axright, extrema(ys_main))
 
-leg = Legend(f2[1, 2],
-[t_xm, a_xm],
-["True Marginal", "IS Marginal"])
+leg = Legend(f2[1, 2], [t_xm, a_xm], ["True Marginal", "IS Marginal (SM)"])
 
 leg.tellheight = true
 
-mainsize = 9/10
+mainsize = 9 / 10
 
 colsize!(f2.layout, 1, Relative(mainsize))
-colsize!(f2.layout, 2, Relative(1-mainsize))
+colsize!(f2.layout, 2, Relative(1 - mainsize))
 rowsize!(f2.layout, 2, Relative(mainsize))
-rowsize!(f2.layout, 1, Relative(1-mainsize))
+rowsize!(f2.layout, 1, Relative(1 - mainsize))
 
 f2
 
@@ -365,91 +383,52 @@ xs = [i[1] for i in mus]
 ys = [i[2] for i in mus]
 scatter!(f3axmain, xs, ys, color = "blue")
 
-t_xm = lines!(f3axtop, xs_main, vec(sum(zs_main, dims = 2)))
-xlims!(f3axtop, extrema(xs_main))
+# t_xm = lines!(f3axtop, xs_main, vec(sum(zs_main, dims = 2)))
+# xlims!(f3axtop, extrema(xs_main))
+#
+# t_ym = lines!(f3axright, vec(sum(zs_main, dims = 1)), ys_main)
+# ylims!(f3axright, extrema(ys_main))
 
-t_ym = lines!(f3axright, vec(sum(zs_main, dims = 1)), ys_main)
-ylims!(f3axright, extrema(ys_main))
+a1 = quad_trap(vec(sum(zs_main, dims = 2)), xs_main)
+a2 = quad_trap(vec(sum(zs_main, dims = 1)), ys_main)
+
+t_xm = lines!(f3axtop, xs_main, vec(sum(zs_main, dims = 2)) ./ 0.5a1)
+t_ym = lines!(f3axright, vec(sum(zs_main, dims = 1)) ./ 0.5a2, ys_main)
 
 hidedecorations!(f3axtop, grid = false)
 hidedecorations!(f3axright, grid = false)
 
-comp_mixture = MixtureModel(rscais_gradual_props)
-zs_mixture = [pdf(comp_mixture, [x, y]) for x in xs_main, y in ys_main]
+# comp_mixture = MixtureModel(rscais_gradual_props)
+# zs_mixture = [pdf(comp_mixture, [x, y]) for x in xs_main, y in ys_main]
+#
+# a_xm = lines!(f3axtop, xs_main, vec(sum(zs_mixture, dims = 2)))
+# xlims!(f3axtop, extrema(xs_main))
+#
+# a_ym = lines!(f3axright, vec(sum(zs_mixture, dims = 1)), ys_main)
+# ylims!(f3axright, extrema(ys_main))
 
-a_xm = lines!(f3axtop, xs_main, vec(sum(zs_mixture, dims = 2)))
+rscais_samples_demux = permutedims(hcat(rscais_results[:samples]...))
+x_kde = kde(rscais_samples_demux[:, 1], weights = rscais_results[:weights])
+y_kde = kde(rscais_samples_demux[:, 2], weights = rscais_results[:weights])
+
+# a_xm = lines!(f2axtop, xs_main, vec(sum(zs_mixture, dims = 2)))
+a_xm = lines!(f3axtop, xs_main, pdf(x_kde, xs_main))
 xlims!(f3axtop, extrema(xs_main))
 
-a_ym = lines!(f3axright, vec(sum(zs_mixture, dims = 1)), ys_main)
+# a_ym = lines!(f2axright, vec(sum(zs_mixture, dims = 1)), ys_main)
+a_ym = lines!(f3axright, pdf(y_kde, ys_main), ys_main)
 ylims!(f3axright, extrema(ys_main))
 
-leg = Legend(f3[1, 2],
-[t_xm, a_xm],
-["True Marginal", "IS Marginal"])
+leg = Legend(f3[1, 2], [t_xm, a_xm], ["True Marginal", "IS Marginal (SM)"])
 
 leg.tellheight = true
 
 colsize!(f3.layout, 1, Relative(mainsize))
-colsize!(f3.layout, 2, Relative(1-mainsize))
+colsize!(f3.layout, 2, Relative(1 - mainsize))
 rowsize!(f3.layout, 2, Relative(mainsize))
-rowsize!(f3.layout, 1, Relative(1-mainsize))
+rowsize!(f3.layout, 1, Relative(1 - mainsize))
 
 f3
-
-function plot_marginals(proposals, target, xrange, yrange)
-    f3 = Figure(resolution = (1600, 1600))
-    f3axtop = Axis(f3[1, 1])
-    f3axmain = Axis(f3[2, 1])
-    f3axright = Axis(f3[2, 2])
-
-    linkyaxes!(f3axmain, f3axright)
-    linkxaxes!(f3axmain, f3axtop)
-
-    ylims!(f3axtop, low = 0)
-    xlims!(f3axright, low = 0)
-
-    _res = 200
-    xs_main = LinRange(xrange..., _res)
-    ys_main = LinRange(yrange..., _res)
-    zs_main = [target([x, y]) for x in xs_main, y in ys_main]
-    pl = heatmap!(f3axmain, xs_main, ys_main, zs_main, interpolate = true, colormap = :Oranges_9)
-
-    mus = [i.μ for i in proposals]
-    xs = [i[1] for i in mus]
-    ys = [i[2] for i in mus]
-    scatter!(f3axmain, xs, ys, color = "blue")
-
-    t_xm = lines!(f3axtop, xs_main, vec(sum(zs_main, dims = 2)))
-    xlims!(f3axtop, extrema(xs_main))
-
-    t_ym = lines!(f3axright, vec(sum(zs_main, dims = 1)), ys_main)
-    ylims!(f3axright, extrema(ys_main))
-
-    hidedecorations!(f3axtop, grid = false)
-    hidedecorations!(f3axright, grid = false)
-
-    comp_mixture = MixtureModel(proposals)
-    zs_mixture = [pdf(comp_mixture, [x, y]) for x in xs_main, y in ys_main]
-
-    a_xm = lines!(f3axtop, xs_main, vec(sum(zs_mixture, dims = 2)))
-    xlims!(f3axtop, extrema(xs_main))
-
-    a_ym = lines!(f3axright, vec(sum(zs_mixture, dims = 1)), ys_main)
-    ylims!(f3axright, extrema(ys_main))
-
-    leg = Legend(f3[1, 2],
-    [t_xm, a_xm],
-    ["True Marginal", "IS Marginal"])
-
-    leg.tellheight = true
-
-    colsize!(f3.layout, 1, Relative(mainsize))
-    colsize!(f3.layout, 2, Relative(1-mainsize))
-    rowsize!(f3.layout, 2, Relative(mainsize))
-    rowsize!(f3.layout, 1, Relative(1-mainsize))
-
-    f3
-end
 
 # f2ax2 = Axis(f2[1, 2], title = "Gradual RSC AIS, $(rs_iters) iterations")
 # _res = 200
@@ -474,7 +453,9 @@ end
 #
 # f2
 
+f4 = plot_marginals2d(dmpmc_props, target, (-6.1, 4.1), (-2.1, 6.1), permutedims(hcat(dmpmc_results[:samples]...)), dmpmc_results[:weights], title = "DMPMC, 30 iterations")
 
-# save(plotsdir("is_weight_degen.pdf"), f)
+
+save(plotsdir("is_weight_degen.pdf"), f)
 
 f2

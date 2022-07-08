@@ -79,7 +79,7 @@ function emscais_step!(
         s_offset = (p_idx - 1) * samples_each
         @views p_samples = samples[(s_offset+1):(s_offset+samples_each)]
         @views p_weights = weights[(s_offset+1):(s_offset+samples_each)]
-        _ess = inv(sum(x -> x .^2, p_weights ./ sum(p_weights)))
+        _ess = inv(sum(x -> x .^ 2, p_weights ./ sum(p_weights)))
 
         if _ess <= N_t
             n_weights2 = p_weights .^ inv(γ)
@@ -91,9 +91,10 @@ function emscais_step!(
         n_weights1 = p_weights ./ sum(p_weights)
 
         is_mean = sum(n_weights1 .* p_samples)
+        is_mean_tfm = sum(n_weights2 .* p_samples)
 
         if κ > 0
-            sampled_mean = hmc4emscais!(
+            hmc_mean = hmc4emscais!(
                 proposals[p_idx].μ,
                 x -> log(target(x)),
                 repulsion = repulsion,
@@ -102,17 +103,20 @@ function emscais_step!(
                 p_idx = p_idx,
             )
         else
-            sampled_mean = zero(is_mean)
+            hmc_mean = zero(is_mean)
         end
 
-        is_mdiff = p_samples .- [is_mean for i = 1:samples_each]
+        is_mdiff1 = p_samples .- [is_mean for i = 1:samples_each]
+        is_mdiff2 = p_samples .- [is_mean_tfm for i = 1:samples_each]
 
-        W = 1.0 - sum(n_weights1 .^ 2)
-        is_cov1 = inv(W) .* sum(n_weights1 .* [i * i' for i in is_mdiff])
-        is_cov2 = inv(W) .* sum(n_weights2 .* [i * i' for i in is_mdiff])
+        W1 = 1.0 - sum(n_weights1 .^ 2)
+        W2 = 1.0 - sum(n_weights2 .^ 2)
+
+        is_cov1 = inv(W1) .* sum(n_weights1 .* [i * i' for i in is_mdiff1])
+        is_cov2 = inv(W2) .* sum(n_weights2 .* [i * i' for i in is_mdiff2])
 
         Σ = (1.0 .- β) .* proposals[p_idx].Σ .+ β .* (1 - η) .* is_cov1 .+ β .* η .* is_cov2
-        μ = (1.0 .- α) .* proposals[p_idx].μ .+ α .* (1 - κ) .* is_mean .+ α .* κ .* sampled_mean
+        μ = (1.0 .- α) .* proposals[p_idx].μ .+ α .* (1 - κ) .* is_mean .+ α .* κ .* hmc_mean
 
         proposals[p_idx] = MvNormal(μ, Σ)
     end
