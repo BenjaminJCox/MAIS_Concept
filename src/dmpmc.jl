@@ -12,16 +12,6 @@ include("weighting_schemes.jl")
 #     return proposals
 # end
 
-function init_proposals(dim, n_proposals; lims = (-2, 2), σ = 1.0)
-    proposals = Vector{MvNormal}(undef, n_proposals)
-    plan = randomLHC(n_proposals, dim)
-    plan = scaleLHC(plan, [lims for d in 1:dim])
-    for p_idx = 1:n_proposals
-        proposals[p_idx] = MvNormal(plan[p_idx, :], Matrix(σ .* I(dim)))
-    end
-    return proposals
-end
-
 
 function dmpmc_step!(proposals::Vector{MvNormal}, target::Function, samples_each::Int; global_adapt = true)
     # we assume the proposals are normal, although we could modify this to not be the case: usual multivariate t may be better

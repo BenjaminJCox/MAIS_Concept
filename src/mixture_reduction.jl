@@ -55,7 +55,7 @@ end
 
 function mixture_culling_ess!(proposals, samples_each, weights; ν = 0.8)
     n_proposals = length(proposals)
-    g_ess = inv(sum(weights .^ 2))
+    # g_ess = inv(sum(weights .^ 2))
     _temp_proposals = Vector{MvNormal}()
     for p_idx in 1:n_proposals
         s_offset = (p_idx - 1) * samples_each
@@ -71,7 +71,7 @@ end
 function split_ess!(proposals, samples_each, weights; ν = 0.2)
     n_proposals = length(proposals)
     gwess = weights ./ sum(weights)
-    g_ess = inv(sum(gwess .^ 2))
+    # g_ess = inv(sum(gwess .^ 2))
 
     l_ess = zeros(n_proposals, n_proposals)
     for p_idx in 1:n_proposals

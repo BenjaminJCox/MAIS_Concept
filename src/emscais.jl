@@ -12,7 +12,8 @@ include("weighting_schemes.jl")
     n_iterations = 10,
     inv_M = Matrix(I(length(θ))),
     ϵ = 0.1,
-    L = 10,
+    L = 10.0,
+    K = 1.0,
     repulsion = false,
     proposals = nothing,
     p_idx = p_idx,
@@ -28,9 +29,9 @@ include("weighting_schemes.jl")
             for leapfrog_step = 1:L
                 # @info("log_target", d_log_target(θ′))
                 # @info("repulsion", emscais_coulomb_repulsion(θ′, proposals, p_idx))
-                ϕ′ .+= 0.5 .* ϵ .* (d_log_target(θ′) .+ coulomb_repulsion(θ′, proposals, p_idx))
+                ϕ′ .+= 0.5 .* ϵ .* (d_log_target(θ′) .+ K .* coulomb_repulsion(θ′, proposals, p_idx))
                 θ′ .+= ϵ .* inv_M * ϕ′
-                ϕ′ .+= 0.5 .* ϵ .* (d_log_target(θ′) .+ coulomb_repulsion(θ′, proposals, p_idx))
+                ϕ′ .+= 0.5 .* ϵ .* (d_log_target(θ′) .+ K .* coulomb_repulsion(θ′, proposals, p_idx))
             end
             # @info("log_target", d_log_target(θ′))
             # @info("repulsion", emscais_coulomb_repulsion(θ′, proposals, p_idx))
@@ -61,11 +62,14 @@ function emscais_step!(
     N_t = 0.1 * samples_each,
     repulsion = true,
     mcmc_steps = 3,
+    hmc_args = Dict()
 )
     # Energy-Mean Shrinkage-Covariance (Multiple) Adaptive Importance Sampling
     n_proposals = length(proposals)
     samples = Vector{Vector{Float64}}(undef, n_proposals * samples_each)
     wts = Vector{Float64}(undef, n_proposals * samples_each)
+    wts_pp = Vector{Vector{Float64}}(undef, n_proposals)
+    proposal_samples = Vector{Vector{Vector{Float64}}}(undef, n_proposals)
     Threads.@threads for p_idx = 1:n_proposals
         prop = proposals[p_idx]
         s_offset = (p_idx - 1) * samples_each
@@ -73,8 +77,11 @@ function emscais_step!(
             samples[s_offset+i] = rand(prop)
             @views wts[s_offset+i] = dm_weights(samples[s_offset+i], proposals, target)
         end
+        @views wts_pp[p_idx] = wts[(s_offset+1):(s_offset+samples_each)]
+        @views proposal_samples[p_idx] = samples[(s_offset+1):(s_offset+samples_each)]
     end
     weights = Weights(wts)
+    proposal_weights = Weights.(wts_pp)
     Threads.@threads for p_idx = 1:n_proposals
         s_offset = (p_idx - 1) * samples_each
         @views p_samples = samples[(s_offset+1):(s_offset+samples_each)]
@@ -100,7 +107,8 @@ function emscais_step!(
                 repulsion = repulsion,
                 proposals = proposals,
                 n_iterations = mcmc_steps,
-                p_idx = p_idx,
+                p_idx = p_idx;
+                hmc_args...
             )
         else
             hmc_mean = zero(is_mean)
@@ -120,5 +128,5 @@ function emscais_step!(
 
         proposals[p_idx] = MvNormal(μ, Σ)
     end
-    return @dict samples weights
+    return @dict samples weights proposal_weights proposal_samples
 end

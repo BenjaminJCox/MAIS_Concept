@@ -26,7 +26,7 @@ Random.seed!(123456);
     t2 = isq_d_sigma
     lt3 = transpose(x .- mu) * i_sigma * (x .- mu)
     t3 = exp(-0.5 .* lt3)
-    return (t1 * t2 * t3)
+    return (t1 .* t2 .* t3)
 end
 
 mu1 = [1.0, 1.0]
@@ -66,7 +66,7 @@ function perform_is(tgt, prop, N)
     return @dict samples weights
 end
 
-f = Figure(resolution = (1600, 800))
+f1 = Figure(resolution = (1600, 800))
 
 N = 1_000
 
@@ -84,11 +84,11 @@ is_mdiff = is_res[:samples] .- [is_mean for i = 1:N]
 is_cov = inv(Zhat) * mean(is_res[:weights] .* [i * i' for i in is_mdiff])
 
 B = 12
-ax1 = Axis(f[1, 1], title = "Regular IS", xticks = LinearTicks(4), yticks = LinearTicks(4))
+ax1 = Axis(f1[1, 1], title = "Regular IS", xticks = LinearTicks(4), yticks = LinearTicks(4))
 hist!(ax1, is_res[:weights] ./ sum(is_res[:weights]), bins = B, normalization = :pdf)
 ylims!(0, nothing)
 xlims!(0, nothing)
-f
+f1
 
 
 dmpmc_props = init_proposals(2, 12, σ = 3.0)
@@ -102,11 +102,11 @@ is_mdiff_dmpmc = dmpmc_results[:samples] .- [is_mean_dmpmc for i = 1:(N*length(d
 
 is_cov_dmpmc = inv(Zhat_dmpmc) * mean(dmpmc_results[:weights] .* [i * i' for i in is_mdiff_dmpmc])
 
-ax2 = Axis(f[1, 2], title = "Deterministic Mixture PMC", xticks = LinearTicks(4), yticks = LinearTicks(4))
+ax2 = Axis(f1[1, 2], title = "Deterministic Mixture PMC", xticks = LinearTicks(4), yticks = LinearTicks(4))
 hist!(ax2, dmpmc_results[:weights] ./ sum(dmpmc_results[:weights]), bins = B, normalization = :pdf)
 ylims!(0, nothing)
 xlims!(0, nothing)
-f
+f1
 
 
 gapis_props = init_proposals(2, 12, σ = 3.0)
@@ -126,11 +126,11 @@ is_mdiff_gapis = gapis_results[:samples] .- [is_mean_gapis for i = 1:(N*length(g
 
 is_cov_gapis = inv(Zhat_gapis) * mean(gapis_results[:weights] .* [i * i' for i in is_mdiff_gapis])
 
-ax3 = Axis(f[1, 3], title = "Gradient Adaptive Population IS", xticks = LinearTicks(4), yticks = LinearTicks(4))
+ax3 = Axis(f1[1, 3], title = "Gradient Adaptive Population IS", xticks = LinearTicks(4), yticks = LinearTicks(4))
 hist!(ax3, gapis_results[:weights] ./ sum(gapis_results[:weights]), bins = B, normalization = :pdf)
 ylims!(0, nothing)
 xlims!(0, nothing)
-f
+f1
 
 
 lais_props = init_proposals(2, 12, σ = 3.0)
@@ -146,11 +146,11 @@ is_mdiff_lais = lais_results[:samples] .- [is_mean_lais for i = 1:(N*length(lais
 
 is_cov_lais = inv(Zhat_lais) * mean(lais_results[:weights] .* [i * i' for i in is_mdiff_lais])
 
-ax4 = Axis(f[1, 4], title = "Layered AIS", xticks = LinearTicks(4), yticks = LinearTicks(4))
+ax4 = Axis(f1[1, 4], title = "Layered AIS", xticks = LinearTicks(4), yticks = LinearTicks(4))
 hist!(ax4, lais_results[:weights] ./ sum(lais_results[:weights]), bins = B, normalization = :pdf)
 ylims!(0, nothing)
 xlims!(0, nothing)
-f
+f1
 
 
 rscais_props = init_proposals(2, 4, σ = 3.0)
@@ -166,11 +166,11 @@ is_mdiff_rscais = rscais_results[:samples] .- [is_mean_rscais for i = 1:(N*lengt
 
 is_cov_rscais = inv(Zhat_rscais) * mean(rscais_results[:weights] .* [i * i' for i in is_mdiff_rscais])
 
-ax5 = Axis(f[2, 1], title = "Recursive Shrinkage AIS", xticks = LinearTicks(4), yticks = LinearTicks(4))
+ax5 = Axis(f1[2, 1], title = "Recursive Shrinkage AIS", xticks = LinearTicks(4), yticks = LinearTicks(4))
 hist!(ax5, rscais_results[:weights] ./ sum(rscais_results[:weights]), bins = B, normalization = :pdf)
 ylims!(0, nothing)
 xlims!(0, nothing)
-f
+f1
 
 
 cais_props = init_proposals(2, 4, σ = 3.0)
@@ -186,11 +186,11 @@ is_mdiff_cais = cais_results[:samples] .- [is_mean_cais for i = 1:(N*length(cais
 
 is_cov_cais = inv(Zhat_cais) * mean(cais_results[:weights] .* [i * i' for i in is_mdiff_cais])
 
-ax6 = Axis(f[2, 2], title = "Covariance AIS", xticks = LinearTicks(4), yticks = LinearTicks(4))
+ax6 = Axis(f1[2, 2], title = "Covariance AIS", xticks = LinearTicks(4), yticks = LinearTicks(4))
 hist!(ax6, cais_results[:weights] ./ sum(cais_results[:weights]), bins = B, normalization = :pdf)
 ylims!(0, nothing)
 xlims!(0, nothing)
-f
+f1
 
 
 rscais_gradual_props = init_proposals(2, 12, σ = 3.0)
@@ -220,11 +220,11 @@ is_mdiff_rscais_gradual = rscais_gradual_results[:samples] .- [is_mean_rscais_gr
 is_cov_rscais_gradual =
     inv(Zhat_rscais_gradual) * mean(rscais_gradual_results[:weights] .* [i * i' for i in is_mdiff_rscais_gradual])
 
-ax7 = Axis(f[2, 3], title = "Gradual Recursive Shrinkage AIS", xticks = LinearTicks(4), yticks = LinearTicks(4))
+ax7 = Axis(f1[2, 3], title = "Gradual Recursive Shrinkage AIS", xticks = LinearTicks(4), yticks = LinearTicks(4))
 hist!(ax7, rscais_gradual_results[:weights] ./ sum(rscais_gradual_results[:weights]), bins = B, normalization = :pdf)
 ylims!(0, nothing)
 xlims!(0, nothing)
-f
+f1
 
 
 emscais_props = init_proposals(2, 12, σ = 3.0)
@@ -236,15 +236,20 @@ for i = 1:ems_iters
     # emscais_step!(emscais_props, target, 100, η = inv(i), β = 0.4 .* exp(-(i-1)/30))
     # (ems_iters - i + 1)/ems_iters
     if i < 40
-        kv = emscais_step!(emscais_props, target, 100, η = inv(i), β = 0.35, κ = inv(i), repulsion = true, α = 1.0)
+        kv = emscais_step!(emscais_props, target, 50, η = inv(i), β = 0.35, κ = inv(i), repulsion = true, α = 1.0, hmc_args = Dict(:K => 1e2))
+        if i < 2
+            global emscais_first = deepcopy(kv)
+        end
     elseif i < 100
-        kv = emscais_step!(emscais_props, target, 100, η = inv(i), β = 0.15, κ = inv(i), repulsion = false, α = 0.7)
+        kv = emscais_step!(emscais_props, target, 100, η = inv(i), β = 0.15, κ = inv(i), repulsion = true, α = 0.7, hmc_args = Dict(:K => 1.0))
     else
         kv = emscais_step!(emscais_props, target, 100, η = inv(i), β = 0.075, κ = inv(i), repulsion = false, α = 0.3)
     end
     if i > 100
         if i % 2 == 0
             global emscais_props = merge_hellinger!(emscais_props, 0.6)
+        elseif i % 5 == 0
+            global emscais_props = split_ess!(emscais_props, 100, kv[:weights]; ν = 0.5)
         else
             global emscais_props = mixture_culling_ess!(emscais_props, 100, kv[:weights]; ν = 0.5)
         end
@@ -261,15 +266,15 @@ is_mdiff_emscais = emscais_results[:samples] .- [is_mean_emscais for i = 1:(N*le
 
 is_cov_emscais = inv(Zhat_emscais) * mean(emscais_results[:weights] .* [i * i' for i in is_mdiff_emscais])
 
-ax8 = Axis(f[2, 4], title = "Energy-Mean Shrinkage-Covariance AIS", xticks = LinearTicks(4), yticks = LinearTicks(4))
+ax8 = Axis(f1[2, 4], title = "Energy-Mean Shrinkage-Covariance AIS", xticks = LinearTicks(4), yticks = LinearTicks(4))
 hist!(ax8, emscais_results[:weights] ./ sum(emscais_results[:weights]), bins = B, normalization = :pdf)
 ylims!(0, nothing)
 xlims!(0, nothing)
 
-Label(f[0, :], "Weight distribution", textsize = 20)
+Label(f1[0, :], "Weight distribution", textsize = 20)
 
 # linkaxes!(ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8)
-f
+f1
 
 function quad_trap(f_eval, xs)
     hs = diff(xs)
@@ -312,6 +317,8 @@ mus = [i.μ for i in emscais_props]
 xs = [i[1] for i in mus]
 ys = [i[2] for i in mus]
 scatter!(f2axmain, xs, ys, color = "blue")
+
+scatter!(f2axmain, Point2f.(sample(emscais_results[:samples], emscais_results[:weights], length(emscais_results[:samples]); replace = true)))
 
 a1 = quad_trap(vec(sum(zs_main, dims = 2)), xs_main)
 a2 = quad_trap(vec(sum(zs_main, dims = 1)), ys_main)
@@ -456,6 +463,6 @@ f3
 f4 = plot_marginals2d(dmpmc_props, target, (-6.1, 4.1), (-2.1, 6.1), permutedims(hcat(dmpmc_results[:samples]...)), dmpmc_results[:weights], title = "DMPMC, 30 iterations")
 
 
-save(plotsdir("is_weight_degen.pdf"), f)
+# save(plotsdir("is_weight_degen.pdf"), f2)
 
 f2

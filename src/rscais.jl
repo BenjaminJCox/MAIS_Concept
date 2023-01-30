@@ -88,6 +88,7 @@ function rscais_gradual_step!(
         Σ = (1.0 .- β) .* proposals[p_idx].Σ .+ β .* (1 - η) .* is_cov1 .+ β .* η .* is_cov2
         μ = (1.0 .- α) .* proposals[p_idx].μ .+ α .* is_mean
 
+
         proposals[p_idx] = MvNormal(μ, Σ)
     end
     return @dict samples weights
