@@ -45,6 +45,32 @@ include("weighting_schemes.jl")
         mha = log_target(θ′) + logpdf(ϕ_dist, ϕ′) - log_target(θ) - logpdf(ϕ_dist, ϕ)
         if log(rand()) < mha
             θ = θ′
+        else
+            # momentum flip
+            ϕ .*= -1.0
+            θ′ = copy(θ)
+            ϕ′ = copy(ϕ)
+            if repulsion == true
+                for leapfrog_step = 1:L
+                    # @info("log_target", d_log_target(θ′))
+                    # @info("repulsion", emscais_coulomb_repulsion(θ′, proposals, p_idx))
+                    ϕ′ .+= 0.5 .* ϵ .* (d_log_target(θ′) .+ K .* coulomb_repulsion(θ′, proposals, p_idx))
+                    θ′ .+= ϵ .* inv_M * ϕ′
+                    ϕ′ .+= 0.5 .* ϵ .* (d_log_target(θ′) .+ K .* coulomb_repulsion(θ′, proposals, p_idx))
+                end
+                # @info("log_target", d_log_target(θ′))
+                # @info("repulsion", emscais_coulomb_repulsion(θ′, proposals, p_idx))
+            else
+                for leapfrog_step = 1:L
+                    ϕ′ .+= 0.5 .* ϵ .* d_log_target(θ′)
+                    θ′ .+= ϵ .* inv_M * ϕ′
+                    ϕ′ .+= 0.5 .* ϵ .* d_log_target(θ′)
+                end
+            end
+            mha = log_target(θ′) + logpdf(ϕ_dist, ϕ′) - log_target(θ) - logpdf(ϕ_dist, ϕ)
+            if log(rand()) < mha
+                θ = θ′
+            end
         end
     end
     return θ

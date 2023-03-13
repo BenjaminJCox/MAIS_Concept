@@ -40,7 +40,7 @@ N = 1_000
 
 
 dmpmc_props = init_proposals(x_dim, n_props, σ = prop_sigma)
-dmpmc_init_adapt!(dmpmc_props, target; n_adapts = n_iters, samples_adapts = 100, global_adapt = false)
+dmpmc_init_adapt!(dmpmc_props, target; n_adapts = n_iters, samples_adapts = 250, global_adapt = true)
 dmpmc_results = dmpmc_step!(dmpmc_props, target, N, global_adapt = true)
 
 Zhat_dmpmc = mean(dmpmc_results[:weights])
@@ -73,26 +73,26 @@ ex_mse[:dmpmc] = mean(is_mean_dmpmc .^ 2)
 # ex_mse[:gapis] = mean(is_mdiff_gapis .^ 2)
 
 
-lais_props = init_proposals(x_dim, n_props, σ = prop_sigma)
-for i = 1:n_iters
-    lais_step!(lais_props, target, 5, repulsion = true, mcmc_steps = 5)
-end
-lais_results = lais_step!(lais_props, target, N, repulsion = true)
-
-Zhat_lais = mean(lais_results[:weights])
-is_mean_lais = inv(Zhat_lais) * mean(lais_results[:weights] .* lais_results[:samples])
-
-is_mdiff_lais = lais_results[:samples] .- [is_mean_lais for i = 1:(N*length(lais_props))]
-
-is_cov_lais = inv(Zhat_lais) * mean(lais_results[:weights] .* [i * i' for i in is_mdiff_lais])
-
-
-ex_mse[:lais] = mean(is_mean_lais .^ 2)
-
-
+# lais_props = init_proposals(x_dim, n_props, σ = prop_sigma)
+# for i = 1:n_iters
+#     lais_step!(lais_props, target, 5, repulsion = true, mcmc_steps = 5)
+# end
+# lais_results = lais_step!(lais_props, target, N, repulsion = true)
+#
+# Zhat_lais = mean(lais_results[:weights])
+# is_mean_lais = inv(Zhat_lais) * mean(lais_results[:weights] .* lais_results[:samples])
+#
+# is_mdiff_lais = lais_results[:samples] .- [is_mean_lais for i = 1:(N*length(lais_props))]
+#
+# is_cov_lais = inv(Zhat_lais) * mean(lais_results[:weights] .* [i * i' for i in is_mdiff_lais])
+#
+#
+# ex_mse[:lais] = mean(is_mean_lais .^ 2)
+#
+#
 rscais_props = init_proposals(x_dim, n_props, σ = prop_sigma)
 for i = 1:n_iters
-    rscais_step!(rscais_props, target, 100)
+    rscais_step!(rscais_props, target, 150)
 end
 rscais_results = rscais_step!(rscais_props, target, N)
 
@@ -103,11 +103,11 @@ is_mdiff_rscais = rscais_results[:samples] .- [is_mean_rscais for i = 1:(N*lengt
 
 is_cov_rscais = inv(Zhat_rscais) * mean(rscais_results[:weights] .* [i * i' for i in is_mdiff_rscais])
 
-ax5 = Axis(f1[2, 1], title = "Recursive Shrinkage AIS", xticks = LinearTicks(4), yticks = LinearTicks(4))
-hist!(ax5, rscais_results[:weights] ./ sum(rscais_results[:weights]), bins = B, normalization = :pdf)
-ylims!(0, nothing)
-xlims!(0, nothing)
-f1
+# ax5 = Axis(f1[2, 1], title = "Recursive Shrinkage AIS", xticks = LinearTicks(4), yticks = LinearTicks(4))
+# hist!(ax5, rscais_results[:weights] ./ sum(rscais_results[:weights]), bins = B, normalization = :pdf)
+# ylims!(0, nothing)
+# xlims!(0, nothing)
+# f1
 
 ex_mse[:rscais] = sum(is_mean_rscais .^ 2)
 
@@ -128,33 +128,33 @@ ex_mse[:rscais] = sum(is_mean_rscais .^ 2)
 # ex_mse[:cais] = mean(is_mean_cais .^ 2)
 
 
-rscais_gradual_props = init_proposals(x_dim, n_props, σ = prop_sigma)
-rsc_mu = [i.μ for i in rscais_gradual_props]
-
-for i = 1:n_iters
-    # rscais_gradual_step!(rscais_gradual_props, target, 100, η = inv(i), β = 0.4 .* exp(-(i-1)/30))
-    # kvk = rscais_gradual_step!(rscais_gradual_props, target, 100, η = inv(i), β = 0.1)
-    kvk = rscais_gradual_step!(rscais_gradual_props, target, 140, η = inv(i), β = 0.4, α = 0.2)
-    if i > 200
-        # global rscais_gradual_props = merge_hellinger!(rscais_gradual_props, 0.2)
-        # if i % 2 == 0
-            # global rscais_gradual_props = merge_hellinger!(rscais_gradual_props, 0.4)
-    #     elseif i % 5 == 0
-    #         global rscais_gradual_props = mixture_culling_ess!(rscais_gradual_props, 100, kvk[:weights]; ν = 0.6)
-        # end
-    end
-end
-rscais_gradual_results = rscais_gradual_step!(rscais_gradual_props, target, N, η = inv(rs_iters + 1), β = 0.1)
-
-Zhat_rscais_gradual = mean(rscais_gradual_results[:weights])
-is_mean_rscais_gradual = inv(Zhat_rscais_gradual) * mean(rscais_gradual_results[:weights] .* rscais_gradual_results[:samples])
-
-is_mdiff_rscais_gradual = rscais_gradual_results[:samples] .- [is_mean_rscais_gradual for i = 1:(N*length(rscais_gradual_props))]
-
-is_cov_rscais_gradual =
-    inv(Zhat_rscais_gradual) * mean(rscais_gradual_results[:weights] .* [i * i' for i in is_mdiff_rscais_gradual])
-
-ex_mse[:rscais_gradual] = mean(is_mean_rscais_gradual .^ 2)
+# rscais_gradual_props = init_proposals(x_dim, n_props, σ = prop_sigma)
+# rsc_mu = [i.μ for i in rscais_gradual_props]
+#
+# for i = 1:n_iters
+#     # rscais_gradual_step!(rscais_gradual_props, target, 100, η = inv(i), β = 0.4 .* exp(-(i-1)/30))
+#     # kvk = rscais_gradual_step!(rscais_gradual_props, target, 100, η = inv(i), β = 0.1)
+#     kvk = rscais_gradual_step!(rscais_gradual_props, target, 140, η = inv(i), β = 0.4, α = 0.2)
+#     if i > 200
+#         # global rscais_gradual_props = merge_hellinger!(rscais_gradual_props, 0.2)
+#         # if i % 2 == 0
+#             # global rscais_gradual_props = merge_hellinger!(rscais_gradual_props, 0.4)
+#     #     elseif i % 5 == 0
+#     #         global rscais_gradual_props = mixture_culling_ess!(rscais_gradual_props, 100, kvk[:weights]; ν = 0.6)
+#         # end
+#     end
+# end
+# rscais_gradual_results = rscais_gradual_step!(rscais_gradual_props, target, N, η = inv(n_iters + 1), β = 0.1)
+#
+# Zhat_rscais_gradual = mean(rscais_gradual_results[:weights])
+# is_mean_rscais_gradual = inv(Zhat_rscais_gradual) * mean(rscais_gradual_results[:weights] .* rscais_gradual_results[:samples])
+#
+# is_mdiff_rscais_gradual = rscais_gradual_results[:samples] .- [is_mean_rscais_gradual for i = 1:(N*length(rscais_gradual_props))]
+#
+# is_cov_rscais_gradual =
+#     inv(Zhat_rscais_gradual) * mean(rscais_gradual_results[:weights] .* [i * i' for i in is_mdiff_rscais_gradual])
+#
+# ex_mse[:rscais_gradual] = mean(is_mean_rscais_gradual .^ 2)
 
 
 emscais_props = init_proposals(x_dim, n_props, σ = prop_sigma)
@@ -188,6 +188,8 @@ for i = 1:n_iters
 end
 emscais_results = emscais_step!(emscais_props, target, N, η = 0, β = 0.03, κ = 0, repulsion = false)
 
+emscais_dm = construct_distance_matrix(emscais_props, pw_hellinger) .+ diagm([0 for i = 1:length(emscais_props)])
+
 Zhat_emscais = mean(emscais_results[:weights])
 is_mean_emscais = inv(Zhat_emscais) * mean(emscais_results[:weights] .* emscais_results[:samples])
 
@@ -198,3 +200,22 @@ is_cov_emscais = inv(Zhat_emscais) * mean(emscais_results[:weights] .* [i * i' f
 ex_mse[:emscais] = mean(is_mean_emscais .^ 2)
 
 display(ex_mse)
+
+# display(emscais_dm)
+
+function cull_diagonal(a::Matrix)
+    sz = LinearIndices(a)
+    n = size(a, 1)
+    k = [sz[i,i] for i in 1:n]
+    b = collect(vec(a'))
+    deleteat!(b, k)
+    collect(reshape(b, n - 1, n)')
+end
+emscais_dm_c = cull_diagonal(emscais_dm)
+v_emscais_dm = vec(emscais_dm_c)
+# hist(v_emscais_dm, axis = (title = "$x_dim dimensional target"))
+
+f = Figure()
+ax = Axis(f[1, 1], title = "$x_dim dimensional target mixand distances")
+hist!(f[1,1], v_emscais_dm)
+f

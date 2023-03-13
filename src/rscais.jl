@@ -60,6 +60,7 @@ function rscais_gradual_step!(
         end
     end
     weights = Weights(wts)
+    # for p_idx = 1:n_proposals
     Threads.@threads for p_idx = 1:n_proposals
         s_offset = (p_idx - 1) * samples_each
         p_samples = samples[(s_offset+1):(s_offset+samples_each)]
@@ -86,6 +87,7 @@ function rscais_gradual_step!(
         is_cov2 = inv(W) .* sum(n_weights2 .* [i * i' for i in is_mdiff])
 
         Σ = (1.0 .- β) .* proposals[p_idx].Σ .+ β .* (1 - η) .* is_cov1 .+ β .* η .* is_cov2
+        Σ = 0.5 .* (Σ + transpose(Σ))
         μ = (1.0 .- α) .* proposals[p_idx].μ .+ α .* is_mean
 
 
