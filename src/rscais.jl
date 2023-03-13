@@ -12,8 +12,9 @@ function rscais_step!(proposals::Vector{MvNormal}, target::Function, samples_eac
         s_offset = (p_idx - 1) * samples_each
         for i = 1:samples_each
             samples[s_offset+i] = rand(prop)
-            wts[s_offset+i] = dm_weights(samples[s_offset+i], proposals, target)
+            # wts[s_offset+i] = dm_weights(samples[s_offset+i], proposals, target)
         end
+        wts[(s_offset+1):(s_offset+samples_each)] = dm_weights_new(samples[(s_offset+1):(s_offset+samples_each)], proposals, target)
     end
     weights = Weights(wts)
     Threads.@threads for p_idx = 1:n_proposals
@@ -46,7 +47,7 @@ function rscais_gradual_step!(
     β = 0.1,
     η = 0.1,
     γ = 3,
-    N_t = 0.1 * samples_each,
+    N_t = length(proposals[begin]) + 2,
 )
     n_proposals = length(proposals)
     samples = Vector{Vector{Float64}}(undef, n_proposals * samples_each)
@@ -56,8 +57,9 @@ function rscais_gradual_step!(
         s_offset = (p_idx - 1) * samples_each
         for i = 1:samples_each
             samples[s_offset+i] = rand(prop)
-            wts[s_offset+i] = dm_weights(samples[s_offset+i], proposals, target)
+            # wts[s_offset+i] = dm_weights(samples[s_offset+i], proposals, target)
         end
+        wts[(s_offset+1):(s_offset+samples_each)] = dm_weights_new(samples[(s_offset+1):(s_offset+samples_each)], proposals, target)
     end
     weights = Weights(wts)
     # for p_idx = 1:n_proposals

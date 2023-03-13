@@ -101,8 +101,9 @@ function emscais_step!(
         s_offset = (p_idx - 1) * samples_each
         for i = 1:samples_each
             samples[s_offset+i] = rand(prop)
-            @views wts[s_offset+i] = dm_weights(samples[s_offset+i], proposals, target)
+            # wts[s_offset+i] = dm_weights(samples[s_offset+i], proposals, target)
         end
+        wts[(s_offset+1):(s_offset+samples_each)] = dm_weights_new(samples[(s_offset+1):(s_offset+samples_each)], proposals, target)
         @views wts_pp[p_idx] = wts[(s_offset+1):(s_offset+samples_each)]
         @views proposal_samples[p_idx] = samples[(s_offset+1):(s_offset+samples_each)]
     end
