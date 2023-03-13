@@ -20,7 +20,7 @@ Random.seed!(123456789);
 
 # target(x) = pdf(MvNormal([1,1], [1 0; 0 1]), x)
 
-@inline function banana(x::Vector; b = 3.0, σ = 1.0)
+@inline function banana(x::Vector{Float64}; b::Float64 = 3.0, σ::Float64 = 1.0)
     @assert length(x) > 2
     t1 = -x[1]^2 / (2σ^2)
     t2 = -((x[2] + b*(x[1]^2-σ^2))^2) / (2σ^2)
@@ -28,8 +28,18 @@ Random.seed!(123456789);
     return exp(t1 + t2 + t3)
 end
 
+@inline function l_banana(x::Vector{Float64}; b::Float64 = 3.0, σ::Float64 = 1.0)
+    @assert length(x) > 2
+    t1 = -x[1]^2 / (2σ^2)
+    t2 = -((x[2] + b*(x[1]^2-σ^2))^2) / (2σ^2)
+    t3 = -sum((x[3:end].^2) ./ (2σ^2))
+    return t1 + t2 + t3
+end
+
+
 @inline target(x) = banana(x)
-@inline d_ltarget(x) = gradient(k -> log(target(k)), x)[1]
+@inline log_target(x) = l_banana(x)
+@inline d_ltarget(x) = gradient(k -> log_target(k), x)[1]
 
 x_dim = 15
 n_props = 25

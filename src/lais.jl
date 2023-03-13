@@ -61,8 +61,9 @@ function lais_step!(
         s_offset = (p_idx - 1) * samples_each
         for i = 1:samples_each
             samples[s_offset+i] = rand(prop)
-            wts[s_offset+i] = dm_weights(samples[s_offset+i], proposals, target)
+            # wts[s_offset+i] = dm_weights(samples[s_offset+i], proposals, target)
         end
+        wts[(s_offset+1):(s_offset+samples_each)] = dm_weights_new(samples[(s_offset+1):(s_offset+samples_each)], proposals, target)
     end
     weights = Weights(wts)
     Threads.@threads for p_idx = 1:n_proposals
