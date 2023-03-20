@@ -174,7 +174,7 @@ emscais_props = init_proposals(x_dim, n_props, σ = prop_sigma)
 
 s_mu = [i.μ for i in emscais_props]
 
-@profiler for i = 1:n_iters
+for i = 1:n_iters
     # emscais_step!(emscais_props, target, 100, η = inv(i), β = 0.4 .* exp(-(i-1)/30))
     # (ems_iters - i + 1)/ems_iters
     @info(i)

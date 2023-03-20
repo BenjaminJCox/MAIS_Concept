@@ -38,3 +38,9 @@ end
     end
     return force
 end
+
+function wrap_samples!(;new_samples, new_weights, old_samples, old_weights)
+    samples = [old_samples..., new_samples...]
+    weights = [old_weights..., new_weights...]
+    return [samples, weights]
+end

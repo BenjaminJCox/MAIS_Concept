@@ -12,7 +12,7 @@ include("weighting_schemes.jl")
     n_iterations = 10,
     inv_M = Matrix(I(length(θ))),
     ϵ = 0.1,
-    L = 10.0,
+    L = 10,
     K = 1.0,
     repulsion = false,
     proposals = nothing,
@@ -97,6 +97,7 @@ function emscais_step!(
     wts_pp = Vector{Vector{Float64}}(undef, n_proposals)
     proposal_samples = Vector{Vector{Vector{Float64}}}(undef, n_proposals)
     Threads.@threads for p_idx = 1:n_proposals
+    # for p_idx = 1:n_proposals
         prop = proposals[p_idx]
         s_offset = (p_idx - 1) * samples_each
         for i = 1:samples_each
@@ -110,22 +111,23 @@ function emscais_step!(
     weights = Weights(wts)
     proposal_weights = Weights.(wts_pp)
     Threads.@threads for p_idx = 1:n_proposals
+    # for p_idx = 1:n_proposals
         s_offset = (p_idx - 1) * samples_each
         @views p_samples = samples[(s_offset+1):(s_offset+samples_each)]
         @views p_weights = weights[(s_offset+1):(s_offset+samples_each)]
-        _ess = inv(sum(x -> x .^ 2, p_weights ./ sum(p_weights)))
-
-        if _ess <= N_t
+        # _ess = inv(sum(x -> x .^ 2, p_weights ./ sum(p_weights)))
+        #
+        # if _ess <= N_t
             n_weights2 = p_weights .^ inv(γ)
             n_weights2 ./= sum(n_weights2)
-        else
-            n_weights2 = p_weights ./ sum(p_weights)
-        end
+        # else
+            # n_weights2 = p_weights ./ sum(p_weights)
+        # end
 
         n_weights1 = p_weights ./ sum(p_weights)
 
         is_mean = sum(n_weights1 .* p_samples)
-        is_mean_tfm = sum(n_weights2 .* p_samples)
+        # is_mean_tfm = sum(n_weights2 .* p_samples)
 
         if κ > 0
             hmc_mean = hmc4emscais!(
@@ -138,17 +140,18 @@ function emscais_step!(
                 hmc_args...
             )
         else
-            hmc_mean = zero(is_mean)
+            hmc_mean = is_mean
         end
 
-        is_mdiff1 = p_samples .- [is_mean for i = 1:samples_each]
-        is_mdiff2 = p_samples .- [is_mean_tfm for i = 1:samples_each]
+        is_mdiff = p_samples .- [is_mean for i = 1:samples_each]
 
-        W1 = 1.0 - sum(n_weights1 .^ 2)
-        W2 = 1.0 - sum(n_weights2 .^ 2)
+        _cov_arr = [i * i' for i in is_mdiff]
 
-        is_cov1 = inv(W1) .* sum(n_weights1 .* [i * i' for i in is_mdiff1])
-        is_cov2 = inv(W2) .* sum(n_weights2 .* [i * i' for i in is_mdiff2])
+        W1 = 1.0 .- sum(n_weights1 .^ 2)
+        W2 = 1.0 .- sum(n_weights2 .^ 2)
+
+        is_cov1 = inv(W1) .* sum(n_weights1 .* _cov_arr)
+        is_cov2 = inv(W2) .* sum(n_weights2 .* _cov_arr)
 
         Σ = (1.0 .- β) .* proposals[p_idx].Σ .+ β .* (1 - η) .* is_cov1 .+ β .* η .* is_cov2
         μ = (1.0 .- α) .* proposals[p_idx].μ .+ α .* (1 - κ) .* is_mean .+ α .* κ .* hmc_mean
@@ -156,4 +159,91 @@ function emscais_step!(
         proposals[p_idx] = MvNormal(μ, Σ)
     end
     return @dict samples weights proposal_weights proposal_samples
+end
+
+function emscais_step!!(
+    proposals::Vector{MvNormal},
+    target::Function,
+    samples_each::Int;
+    α = 0.1,
+    β = 0.1,
+    η = 0.1,
+    κ = 0.1,
+    γ = 3,
+    N_t = 0.1 * samples_each,
+    repulsion = true,
+    mcmc_steps = 3,
+    hmc_args = Dict(),
+    samples,
+    weights
+)
+    # Energy-Mean Shrinkage-Covariance (Multiple) Adaptive Importance Sampling
+    n_proposals = length(proposals)
+    # samples = Vector{Vector{Float64}}(undef, n_proposals * samples_each)
+    # wts = Vector{Float64}(undef, n_proposals * samples_each)
+    # wts_pp = Vector{Vector{Float64}}(undef, n_proposals)
+    proposal_samples = Vector{Vector{Vector{Float64}}}(undef, n_proposals)
+    Threads.@threads for p_idx = 1:n_proposals
+    # for p_idx = 1:n_proposals
+        prop = proposals[p_idx]
+        s_offset = (p_idx - 1) * samples_each
+        for i = 1:samples_each
+            samples[s_offset+i] .= rand(prop)
+            # wts[s_offset+i] = dm_weights(samples[s_offset+i], proposals, target)
+        end
+        weights[(s_offset+1):(s_offset+samples_each)] .= dm_weights_new(samples[(s_offset+1):(s_offset+samples_each)], proposals, target)
+        # @views wts_pp[p_idx] = wts[(s_offset+1):(s_offset+samples_each)]
+        # @views proposal_samples[p_idx] = samples[(s_offset+1):(s_offset+samples_each)]
+    end
+    # weights = Weights(wts)
+    # proposal_weights = Weights.(wts_pp)
+    Threads.@threads for p_idx = 1:n_proposals
+    # for p_idx = 1:n_proposals
+        s_offset = (p_idx - 1) * samples_each
+        @views p_samples = samples[(s_offset+1):(s_offset+samples_each)]
+        @views p_weights = weights[(s_offset+1):(s_offset+samples_each)]
+        # _ess = inv(sum(x -> x .^ 2, p_weights ./ sum(p_weights)))
+        #
+        # if _ess <= N_t
+            n_weights2 = p_weights .^ inv(γ)
+            n_weights2 ./= sum(n_weights2)
+        # else
+            # n_weights2 = p_weights ./ sum(p_weights)
+        # end
+
+        n_weights1 = p_weights ./ sum(p_weights)
+
+        is_mean = sum(n_weights1 .* p_samples)
+        # is_mean_tfm = sum(n_weights2 .* p_samples)
+
+        if κ > 0
+            hmc_mean = hmc4emscais!(
+                proposals[p_idx].μ,
+                x -> log(target(x)),
+                repulsion = repulsion,
+                proposals = proposals,
+                n_iterations = mcmc_steps,
+                p_idx = p_idx;
+                hmc_args...
+            )
+        else
+            hmc_mean = is_mean
+        end
+
+        is_mdiff = p_samples .- [is_mean for i = 1:samples_each]
+
+        _cov_arr = [i * i' for i in is_mdiff]
+
+        W1 = 1.0 .- sum(n_weights1 .^ 2)
+        W2 = 1.0 .- sum(n_weights2 .^ 2)
+
+        is_cov1 = inv(W1) .* sum(n_weights1 .* _cov_arr)
+        is_cov2 = inv(W2) .* sum(n_weights2 .* _cov_arr)
+
+        Σ = (1.0 .- β) .* proposals[p_idx].Σ .+ β .* (1 - η) .* is_cov1 .+ β .* η .* is_cov2
+        μ = (1.0 .- α) .* proposals[p_idx].μ .+ α .* (1 - κ) .* is_mean .+ α .* κ .* hmc_mean
+
+        proposals[p_idx] = MvNormal(μ, Σ)
+    end
+    return @dict samples weights
 end
